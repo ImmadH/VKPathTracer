@@ -103,7 +103,7 @@ void VulkanInstance::create(bool enableValidationLayers)
 
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  appInfo.pApplicationName = "VKRenderer - A Vulkan 1.0 Renderer";
+  appInfo.pApplicationName = "VKRenderer - A Vulkan 1.3 Renderer";
   appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
   appInfo.pEngineName = "No Engine";
   appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);

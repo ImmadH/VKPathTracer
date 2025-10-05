@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <iostream>
 #include "instance.h"
+#include "device.h"
 #include "GLFW/glfw3.h"
+#include <vulkan/vulkan_core.h>
 
 //Application layer that will hold all vulkan related objects and windowing 
 //run will kinda be like vulkan tutorial
@@ -18,12 +20,13 @@ private:
   void cleanup();
 
   GLFWwindow* window = nullptr;
+  VkSurfaceKHR surface = VK_NULL_HANDLE;
   const uint32_t WIDTH = 800;
   const uint32_t HEIGHT = 600;
 
   //VULKAN OBJECTS!
   VulkanInstance instance;
-  //VulkanDevice device;
+  VulkanDevice device;
   //VulkanSwapchain swapchain;
   //VulkanPipeline pipeline;
   //VulkanCommand command;

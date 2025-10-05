@@ -16,6 +16,7 @@ public:
   void destroy();
   VkDebugUtilsMessengerEXT getDebugMessenger() const { return debugMessenger; }
   bool validationEnabled() const { return m_validationEnabled; }
+  VkInstance getInstance() const {return instance;}
 
 private:
   VkInstance instance = VK_NULL_HANDLE;
