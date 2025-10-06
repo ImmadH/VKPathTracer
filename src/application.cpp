@@ -1,4 +1,5 @@
 #include "application.h"
+#include <iostream>
 #include <vulkan/vulkan_core.h>
 
 void VulkanApp::run()
@@ -29,6 +30,8 @@ void VulkanApp::initVulkan()
   std::cout << "Created Window Surface\n";
 
   device.create(instance, surface);
+  swapchain.createSwapChain(device, surface, window);
+  swapchain.createImageViews(device);
 }
 
 void VulkanApp::mainLoop()
@@ -43,8 +46,10 @@ void VulkanApp::mainLoop()
 void VulkanApp::cleanup()
 {
   std::cout << " " << '\n';
+  swapchain.destroy(device);
   device.destroy();
   vkDestroySurfaceKHR(instance.getInstance(), surface, nullptr);
+  std::cerr << "Window Surface Destroyed\n";
   instance.destroy();
   glfwDestroyWindow(window);
   glfwTerminate();

@@ -3,6 +3,7 @@
 #include <iostream>
 #include "instance.h"
 #include "device.h"
+#include "swapchain.h"
 #include "GLFW/glfw3.h"
 #include <vulkan/vulkan_core.h>
 
@@ -27,7 +28,7 @@ private:
   //VULKAN OBJECTS!
   VulkanInstance instance;
   VulkanDevice device;
-  //VulkanSwapchain swapchain;
+  VulkanSwapchain swapchain;
   //VulkanPipeline pipeline;
   //VulkanCommand command;
   //VulkanSync syncObjects;

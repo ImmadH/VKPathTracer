@@ -40,13 +40,13 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surfa
         }
 
         if (indices.isComplete()) break;
-        ++i;
+         ++i;
     }
 
     return indices;
 }
 
-static SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface)
+SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface)
 {
     SwapChainSupportDetails details{};
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
@@ -54,7 +54,7 @@ static SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, Vk
     uint32_t count = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, nullptr);
     if (count) 
-    {
+  {
         details.formats.resize(count);
         vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, details.formats.data());
     }
@@ -137,6 +137,8 @@ void VulkanDevice::create(VulkanInstance& instance, VkSurfaceKHR surface)
 
   //Create a logical device once we have picked our device
   QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
+  //store queue family indices to be used in swap chain 
+  queueFI = indices;
   std::set<uint32_t> uniqueQueueFamilies = {
         indices.graphicsFamily.value(),
         indices.presentFamily.value()
