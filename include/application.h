@@ -6,6 +6,8 @@
 #include "swapchain.h"
 #include "renderpass.h"
 #include "pipeline.h"
+#include "commands.h"
+#include "sync.h"
 #include "GLFW/glfw3.h"
 #include <vulkan/vulkan_core.h>
 
@@ -15,6 +17,11 @@ class VulkanApp
 {
 public:
   void run();
+  void createFrameBuffers();
+  void destroyFrameBuffers();
+
+  void drawFrame();
+
 
 private:
   void initWindow();
@@ -27,13 +34,15 @@ private:
   const uint32_t WIDTH = 800;
   const uint32_t HEIGHT = 600;
 
+  std::vector<VkFramebuffer> swapChainFramebuffers;
+
   //VULKAN OBJECTS!
   VulkanInstance instance;
   VulkanDevice device;
   VulkanSwapchain swapchain;
   VulkanRenderPass renderPass;
   VulkanPipeline pipeline;
-  //VulkanCommand command;
-  //VulkanSync syncObjects;
+  VulkanCommands commands;
+  VulkanSync sync;
 
 };

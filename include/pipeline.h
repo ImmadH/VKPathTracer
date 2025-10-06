@@ -15,9 +15,10 @@ public:
                               const char* fragSpvPath = "shaders/frag.spv");
 
   void destroy(const VulkanDevice& device);
-private:
-  VkPipeline       getPipeline() const {return graphicsPipeline;}
+  VkPipeline  getPipeline() const {return graphicsPipeline;}
   VkPipelineLayout getLayout() const {return pipelineLayout;}
+private:
+
 
   VkShaderModule createShaderModule(const VulkanDevice& device, const std::vector<char>& code) const;
 

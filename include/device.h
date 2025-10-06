@@ -12,7 +12,7 @@ public:
   VkPhysicalDevice getPhysicalDevice() const {return physicalDevice;}
   VkQueue getGraphicsQueue() const {return graphicsQueue;}
   VkQueue getPresentQueue() const {return presentQueue;}
-  QueueFamilyIndices& getQueueFamilyIndices(){ return queueFI; }
+  QueueFamilyIndices getQueueFamilyIndices() const {return queueFI;}
 
 private:
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;  
