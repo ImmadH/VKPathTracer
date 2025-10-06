@@ -106,7 +106,7 @@ void VulkanSwapchain::createSwapChain(VulkanDevice& device, VkSurfaceKHR surface
     throw std::runtime_error("failed to create swap chain!");
   }
 
-  std::cout << "Swapchain Created\n";
+  std::cout << "Created Swapchain\n";
 
   vkGetSwapchainImagesKHR(device.getDevice(), swapChain, &imageCount, nullptr);
   swapChainImages.resize(imageCount);

@@ -1,0 +1,27 @@
+#pragma once
+#include <vulkan/vulkan_core.h>
+#include <vector>
+#include <string>
+#include "device.h"
+#include "swapchain.h"
+#include "renderpass.h"
+class VulkanPipeline
+{
+public:
+  void createGraphicsPipeline(const VulkanDevice& device,
+                              const VulkanSwapchain& swapchain,
+                              const VulkanRenderPass& renderPass,
+                              const char* vertSpvPath = "shaders/vert.spv",
+                              const char* fragSpvPath = "shaders/frag.spv");
+
+  void destroy(const VulkanDevice& device);
+private:
+  VkPipeline       getPipeline() const {return graphicsPipeline;}
+  VkPipelineLayout getLayout() const {return pipelineLayout;}
+
+  VkShaderModule createShaderModule(const VulkanDevice& device, const std::vector<char>& code) const;
+
+  VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+  VkPipeline       graphicsPipeline = VK_NULL_HANDLE;
+
+};

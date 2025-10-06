@@ -4,6 +4,8 @@
 #include "instance.h"
 #include "device.h"
 #include "swapchain.h"
+#include "renderpass.h"
+#include "pipeline.h"
 #include "GLFW/glfw3.h"
 #include <vulkan/vulkan_core.h>
 
@@ -29,7 +31,8 @@ private:
   VulkanInstance instance;
   VulkanDevice device;
   VulkanSwapchain swapchain;
-  //VulkanPipeline pipeline;
+  VulkanRenderPass renderPass;
+  VulkanPipeline pipeline;
   //VulkanCommand command;
   //VulkanSync syncObjects;
 

@@ -32,6 +32,8 @@ void VulkanApp::initVulkan()
   device.create(instance, surface);
   swapchain.createSwapChain(device, surface, window);
   swapchain.createImageViews(device);
+  renderPass.createRenderPass(device, swapchain.getImageFormat());
+  pipeline.createGraphicsPipeline(device, swapchain, renderPass);
 }
 
 void VulkanApp::mainLoop()
@@ -46,6 +48,8 @@ void VulkanApp::mainLoop()
 void VulkanApp::cleanup()
 {
   std::cout << " " << '\n';
+  pipeline.destroy(device);
+  renderPass.destroy(device);
   swapchain.destroy(device);
   device.destroy();
   vkDestroySurfaceKHR(instance.getInstance(), surface, nullptr);
