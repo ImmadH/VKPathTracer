@@ -12,6 +12,7 @@ public:
   void createSwapChain(VulkanDevice& device, VkSurfaceKHR surface, GLFWwindow* window);
   void createImageViews(const VulkanDevice& device);
   void destroy(VulkanDevice& device);
+  void cleanSwapChain(VulkanDevice& device);
   
   //utilities from vktut
   VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) const;
@@ -23,6 +24,8 @@ public:
   VkExtent2D getExtent() const { return swapChainExtent; }
   const std::vector<VkImageView>& getImageViews() const {return swapChainImageViews;}
   const std::vector<VkImage>& getImages() const {return swapChainImages;}
+
+
 
 private:
   VkSwapchainKHR swapChain = VK_NULL_HANDLE;

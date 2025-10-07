@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <limits>
+#include <vulkan/vulkan_core.h>
 //utilities
 VkSurfaceFormatKHR VulkanSwapchain::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) const
 {
@@ -161,4 +162,17 @@ void VulkanSwapchain::destroy(VulkanDevice& device)
   swapChainImageFormat = VK_FORMAT_UNDEFINED;
   swapChainExtent = {};
   std::cerr << "Swapchain Destroyed\n";
+}
+
+void VulkanSwapchain::cleanSwapChain(VulkanDevice& device)
+{
+  //make sure to destroy framebuffers before calling this
+  for (auto framebuffer : swapChainImageViews)
+  {
+      vkDestroyImageView(device.getDevice(), framebuffer, nullptr);
+  }
+  swapChainImageViews.clear();
+  swapChainImages.clear();
+  vkDestroySwapchainKHR(device.getDevice(), swapChain, nullptr);
+  swapChain = VK_NULL_HANDLE;
 }

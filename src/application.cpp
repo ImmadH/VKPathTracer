@@ -1,4 +1,5 @@
 #include "application.h"
+#include <cstdint>
 #include <iostream>
 #include <vulkan/vulkan_core.h>
 
@@ -15,8 +16,15 @@ void VulkanApp::initWindow()
 {
   glfwInit();
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   window = glfwCreateWindow(WIDTH, HEIGHT, "VKRenderer - A Vulkan 1.3 Renderer", nullptr, nullptr);
+  glfwSetWindowUserPointer(window, this);
+  glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+}
+
+void VulkanApp::framebufferResizeCallback(GLFWwindow *window, int width, int height)
+{
+  auto app = reinterpret_cast<VulkanApp*>(glfwGetWindowUserPointer(window));
+  app->framebufferResized = true;
 }
 
 //Here we will call the creation of vulkan objects
@@ -78,6 +86,25 @@ void VulkanApp::destroyFrameBuffers()
     swapChainFramebuffers.clear();
 }
 
+void VulkanApp::recreateSwapChain()
+{
+  int width = 0, height = 0;
+  glfwGetFramebufferSize(window, &width, &height);
+  while (width == 0 || height == 0) {
+      glfwGetFramebufferSize(window, &width, &height);
+      glfwWaitEvents();
+  }
+  vkDeviceWaitIdle(device.getDevice());
+  destroyFrameBuffers();
+  swapchain.cleanSwapChain(device);
+  swapchain.createSwapChain(device, surface, window);
+  swapchain.createImageViews(device);
+  createFrameBuffers();
+  commands.destroy(device);                // or free/reset CBs
+  commands.createCommandPool(device);      // with RESET flag
+  commands.createCommandBuffers(device, swapchain, renderPass, pipeline, swapChainFramebuffers);
+}
+
 
 void VulkanApp::mainLoop()
 {
@@ -91,23 +118,26 @@ void VulkanApp::mainLoop()
 
 void VulkanApp::drawFrame()
 {
-  VkFence fence = sync.getInFlightFence();
-  vkWaitForFences(device.getDevice(), 1, &fence, VK_TRUE, UINT64_MAX);
-  vkResetFences(device.getDevice(), 1, &fence);
+  VkFence frameFence = sync.getInFlightFence()[currentFrame];
+  vkWaitForFences(device.getDevice(), 1, &frameFence, VK_TRUE, UINT64_MAX);
+  vkResetFences(device.getDevice(), 1, &frameFence);
 
   uint32_t imageIndex = 0;
-  if (vkAcquireNextImageKHR(device.getDevice(),
-                            swapchain.getSwapChain(),
-                            UINT64_MAX,
-                            sync.getImageAvailableSemaphore(),
-                            VK_NULL_HANDLE,
-                            &imageIndex) != VK_SUCCESS) {
+  VkResult result = vkAcquireNextImageKHR(device.getDevice(),  swapchain.getSwapChain(), UINT64_MAX, sync.getImageAvailableSemaphore()[currentFrame], VK_NULL_HANDLE, &imageIndex); 
+  if (result == VK_ERROR_OUT_OF_DATE_KHR) 
+  {
+    framebufferResized = false;
+    recreateSwapChain();
+    return;
+  } 
+  else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
+  {
     throw std::runtime_error("failed to acquire swap chain image!");
   }
 
-  VkSemaphore waitSemaphores[]   = { sync.getImageAvailableSemaphore() };
-  VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-  VkSemaphore signalSemaphores[] = { sync.getRenderFinishedSemaphore() };
+  VkSemaphore waitSemaphores[]  = {sync.imageAvailable(currentFrame)};
+  VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+  VkSemaphore signalSemaphores[] = {sync.renderFinished(currentFrame)};
 
   const auto& cbs = commands.getCommandBuffers();
 
@@ -121,8 +151,10 @@ void VulkanApp::drawFrame()
   submitInfo.signalSemaphoreCount = 1;
   submitInfo.pSignalSemaphores    = signalSemaphores;
 
-  if (vkQueueSubmit(device.getGraphicsQueue(), 1, &submitInfo, fence) != VK_SUCCESS)
+  if (vkQueueSubmit(device.getGraphicsQueue(), 1, &submitInfo, frameFence) != VK_SUCCESS)
     throw std::runtime_error("failed to submit draw command buffer!");
+
+  VkSemaphore presentWaitSemaphores[] = { sync.renderFinished(currentFrame) };
 
   VkPresentInfoKHR presentInfo{};
   presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -133,8 +165,19 @@ void VulkanApp::drawFrame()
   presentInfo.pSwapchains        = scs;
   presentInfo.pImageIndices      = &imageIndex;
 
-  if (vkQueuePresentKHR(device.getPresentQueue(), &presentInfo) != VK_SUCCESS)
+  result = vkQueuePresentKHR(device.getPresentQueue(), &presentInfo);
+
+  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) 
+  {
+    framebufferResized = false;
+    recreateSwapChain();
+  } 
+  else if (result != VK_SUCCESS) 
+  {
     throw std::runtime_error("failed to present swap chain image!");
+  }
+
+  currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 

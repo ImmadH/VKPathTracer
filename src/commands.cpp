@@ -1,7 +1,10 @@
 #include "commands.h"
+#include <cstdint>
 #include <stdexcept>
 #include "pipeline.h"
 #include <iostream>
+#include "sync.h"
+
 void VulkanCommands::createCommandPool(const VulkanDevice& device)
 {
   const auto& qfi = device.getQueueFamilyIndices();
@@ -26,10 +29,10 @@ void VulkanCommands::createCommandBuffers(const VulkanDevice& device,
   commandBuffers.resize(framebuffers.size());
 
   VkCommandBufferAllocateInfo allocInfo{};
-  allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.commandPool        = commandPool;
-  allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+  allocInfo.sType   = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfo.commandPool   = commandPool;
+  allocInfo.level   = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
 
   if (vkAllocateCommandBuffers(device.getDevice(), &allocInfo, commandBuffers.data()) != VK_SUCCESS)
     throw std::runtime_error("failed to allocate command buffers!");

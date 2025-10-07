@@ -19,6 +19,8 @@ public:
   void run();
   void createFrameBuffers();
   void destroyFrameBuffers();
+  void recreateSwapChain();
+  static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
   void drawFrame();
 
@@ -33,6 +35,8 @@ private:
   VkSurfaceKHR surface = VK_NULL_HANDLE;
   const uint32_t WIDTH = 800;
   const uint32_t HEIGHT = 600;
+  uint32_t currentFrame = 0;
+  bool framebufferResized = false;
 
   std::vector<VkFramebuffer> swapChainFramebuffers;
 
