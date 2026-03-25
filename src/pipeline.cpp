@@ -19,7 +19,8 @@ static std::vector<char> readFile(const std::string& filename)
 
 VkShaderModule VulkanPipeline::createShaderModule(const VulkanDevice& device, const std::vector<char>& code) const
 {
-  VkShaderModuleCreateInfo info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+  VkShaderModuleCreateInfo info{};
+  info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   info.codeSize = code.size();
   info.pCode    = reinterpret_cast<const uint32_t*>(code.data());
 
@@ -29,12 +30,66 @@ VkShaderModule VulkanPipeline::createShaderModule(const VulkanDevice& device, co
   return module;
 }
 
+void VulkanPipeline::createDescriptorSetLayouts(const VulkanDevice& device)
+{
+  VkDescriptorSetLayoutBinding computeCameraBinding{};
+  computeCameraBinding.binding = 0;
+  computeCameraBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  computeCameraBinding.descriptorCount = 1;
+  computeCameraBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-void VulkanPipeline::createGraphicsPipeline(const VulkanDevice& device,
-                                            const VulkanSwapchain& swapchain,
-                                            const VulkanRenderPass& renderPass,
-                                            const char* vertSpvPath,
-                                            const char* fragSpvPath)
+  VkDescriptorSetLayoutBinding computeAccumulationReadBinding{};
+  computeAccumulationReadBinding.binding = 1;
+  computeAccumulationReadBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  computeAccumulationReadBinding.descriptorCount = 1;
+  computeAccumulationReadBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+  VkDescriptorSetLayoutBinding computeAccumulationWriteBinding{};
+  computeAccumulationWriteBinding.binding = 2;
+  computeAccumulationWriteBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  computeAccumulationWriteBinding.descriptorCount = 1;
+  computeAccumulationWriteBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+  VkDescriptorSetLayoutBinding computeBindings[] = {
+    computeCameraBinding,
+    computeAccumulationReadBinding,
+    computeAccumulationWriteBinding
+  };
+
+  VkDescriptorSetLayoutCreateInfo computeLayoutInfo{};
+  computeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  computeLayoutInfo.bindingCount = 3;
+  computeLayoutInfo.pBindings = computeBindings;
+
+  if (vkCreateDescriptorSetLayout(device.getDevice(), &computeLayoutInfo, nullptr, &computeDescriptorSetLayout) != VK_SUCCESS)
+  {
+    throw std::runtime_error("failed to create compute descriptor set layout!");
+  }
+
+  VkDescriptorSetLayoutBinding displayAccumulationBinding{};
+  displayAccumulationBinding.binding = 0;
+  displayAccumulationBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  displayAccumulationBinding.descriptorCount = 1;
+  displayAccumulationBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  VkDescriptorSetLayoutCreateInfo displayLayoutInfo{};
+  displayLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  displayLayoutInfo.bindingCount = 1;
+  displayLayoutInfo.pBindings = &displayAccumulationBinding;
+
+  if (vkCreateDescriptorSetLayout(device.getDevice(), &displayLayoutInfo, nullptr, &displayDescriptorSetLayout) != VK_SUCCESS)
+  {
+    throw std::runtime_error("failed to create display descriptor set layout!");
+  }
+
+  std::cout << "Created Descriptor Set Layouts\n";
+}
+
+
+void VulkanPipeline::createDisplayPipeline(const VulkanDevice& device,
+                                           const VulkanRenderPass& renderPass,
+                                           const char* vertSpvPath,
+                                           const char* fragSpvPath)
 {
   // shader modules
   auto vertCode = readFile(vertSpvPath);
@@ -43,32 +98,37 @@ void VulkanPipeline::createGraphicsPipeline(const VulkanDevice& device,
   VkShaderModule vertModule = createShaderModule(device, vertCode);
   VkShaderModule fragModule = createShaderModule(device, fragCode);
 
-  VkPipelineShaderStageCreateInfo vertStage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+  VkPipelineShaderStageCreateInfo vertStage{};
+  vertStage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertStage.stage  = VK_SHADER_STAGE_VERTEX_BIT;
   vertStage.module = vertModule;
   vertStage.pName  = "main";
 
-  VkPipelineShaderStageCreateInfo fragStage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+  VkPipelineShaderStageCreateInfo fragStage{};
+  fragStage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   fragStage.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
   fragStage.module = fragModule;
   fragStage.pName  = "main";
 
   VkPipelineShaderStageCreateInfo stages[] = { vertStage, fragStage };
 
-  // fixed functions 
-  VkPipelineVertexInputStateCreateInfo vertexInput{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+  VkPipelineVertexInputStateCreateInfo vertexInput{};
+  vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   vertexInput.vertexBindingDescriptionCount   = 0;
   vertexInput.vertexAttributeDescriptionCount = 0;
 
-  VkPipelineInputAssemblyStateCreateInfo inputAssemblerInfo{ VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
+  VkPipelineInputAssemblyStateCreateInfo inputAssemblerInfo{};
+  inputAssemblerInfo.sType                = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   inputAssemblerInfo.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   inputAssemblerInfo.primitiveRestartEnable = VK_FALSE;
 
-  VkPipelineViewportStateCreateInfo vpState{ VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
+  VkPipelineViewportStateCreateInfo vpState{};
+  vpState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
   vpState.viewportCount = 1;
   vpState.scissorCount  = 1;
 
-  VkPipelineRasterizationStateCreateInfo rasterizer{ VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
+  VkPipelineRasterizationStateCreateInfo rasterizer{};
+  rasterizer.sType                 = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
   rasterizer.depthClampEnable        = VK_FALSE;
   rasterizer.rasterizerDiscardEnable = VK_FALSE;
   rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
@@ -77,7 +137,8 @@ void VulkanPipeline::createGraphicsPipeline(const VulkanDevice& device,
   rasterizer.frontFace               = VK_FRONT_FACE_CLOCKWISE; 
   rasterizer.depthBiasEnable         = VK_FALSE;
 
-  VkPipelineMultisampleStateCreateInfo multiSampling{ VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+  VkPipelineMultisampleStateCreateInfo multiSampling{};
+  multiSampling.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   multiSampling.rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT;
   multiSampling.sampleShadingEnable    = VK_FALSE;
 
@@ -86,23 +147,27 @@ void VulkanPipeline::createGraphicsPipeline(const VulkanDevice& device,
                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   cbAtt.blendEnable    = VK_FALSE;
 
-  VkPipelineColorBlendStateCreateInfo cblend{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+  VkPipelineColorBlendStateCreateInfo cblend{};
+  cblend.sType          = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
   cblend.logicOpEnable   = VK_FALSE;
   cblend.attachmentCount = 1;
   cblend.pAttachments    = &cbAtt;
 
   VkDynamicState dynamics[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-  VkPipelineDynamicStateCreateInfo dyn{ VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
+  VkPipelineDynamicStateCreateInfo dyn{};
+  dyn.sType            = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
   dyn.dynamicStateCount = 2;
   dyn.pDynamicStates    = dynamics;
 
-  //  pipeline layout 
-  VkPipelineLayoutCreateInfo pl{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-  if (vkCreatePipelineLayout(device.getDevice(), &pl, nullptr, &pipelineLayout) != VK_SUCCESS)
-    throw std::runtime_error("failed to create pipeline layout!");
+  VkPipelineLayoutCreateInfo layoutInfo{};
+  layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  layoutInfo.setLayoutCount = 1;
+  layoutInfo.pSetLayouts = &displayDescriptorSetLayout;
+  if (vkCreatePipelineLayout(device.getDevice(), &layoutInfo, nullptr, &displayPipelineLayout) != VK_SUCCESS)
+    throw std::runtime_error("failed to create display pipeline layout!");
 
-  //  graphics pipeline
-  VkGraphicsPipelineCreateInfo pipelineCreateInfo{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
+  VkGraphicsPipelineCreateInfo pipelineCreateInfo{};
+  pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipelineCreateInfo.stageCount = 2;
   pipelineCreateInfo.pStages = stages;
   pipelineCreateInfo.pVertexInputState  = &vertexInput;
@@ -112,32 +177,82 @@ void VulkanPipeline::createGraphicsPipeline(const VulkanDevice& device,
   pipelineCreateInfo.pMultisampleState = &multiSampling;
   pipelineCreateInfo.pColorBlendState = &cblend;
   pipelineCreateInfo.pDynamicState = &dyn;
-  pipelineCreateInfo.layout = pipelineLayout;
+  pipelineCreateInfo.layout = displayPipelineLayout;
   pipelineCreateInfo.renderPass = renderPass.getRenderPass();
   pipelineCreateInfo.subpass = 0;
 
-  if (vkCreateGraphicsPipelines(device.getDevice(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
-    throw std::runtime_error("failed to create graphics pipeline!");
+  if (vkCreateGraphicsPipelines(device.getDevice(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &displayPipeline) != VK_SUCCESS)
+    throw std::runtime_error("failed to create display pipeline!");
 
   // shader modules go after pipeline creation
   vkDestroyShaderModule(device.getDevice(), fragModule, nullptr);
   vkDestroyShaderModule(device.getDevice(), vertModule, nullptr);
 
-  std::cout << "Created Graphics Pipeline\n";
+  std::cout << "Created Display Pipeline\n";
+}
+
+void VulkanPipeline::createComputePipeline(const VulkanDevice& device, const char* computeSpvPath)
+{
+  auto computeCode = readFile(computeSpvPath);
+  VkShaderModule computeModule = createShaderModule(device, computeCode);
+
+  VkPipelineShaderStageCreateInfo computeStage{};
+  computeStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  computeStage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+  computeStage.module = computeModule;
+  computeStage.pName = "main";
+
+  VkPipelineLayoutCreateInfo layoutInfo{};
+  layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  layoutInfo.setLayoutCount = 1;
+  layoutInfo.pSetLayouts = &computeDescriptorSetLayout;
+  if (vkCreatePipelineLayout(device.getDevice(), &layoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS)
+    throw std::runtime_error("failed to create compute pipeline layout!");
+
+  VkComputePipelineCreateInfo pipelineInfo{};
+  pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+  pipelineInfo.stage = computeStage;
+  pipelineInfo.layout = computePipelineLayout;
+
+  if (vkCreateComputePipelines(device.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS)
+    throw std::runtime_error("failed to create compute pipeline!");
+
+  vkDestroyShaderModule(device.getDevice(), computeModule, nullptr);
+  std::cout << "Created Compute Pipeline\n";
 }
 
 void VulkanPipeline::destroy(const VulkanDevice& device)
 {
-  if (graphicsPipeline) 
+  if (computePipeline)
   {
-    vkDestroyPipeline(device.getDevice(), graphicsPipeline, nullptr);
-    graphicsPipeline = VK_NULL_HANDLE;
+    vkDestroyPipeline(device.getDevice(), computePipeline, nullptr);
+    computePipeline = VK_NULL_HANDLE;
   }
-  if (pipelineLayout) 
+  if (displayPipeline) 
   {
-    vkDestroyPipelineLayout(device.getDevice(), pipelineLayout, nullptr);
-    pipelineLayout = VK_NULL_HANDLE;
+    vkDestroyPipeline(device.getDevice(), displayPipeline, nullptr);
+    displayPipeline = VK_NULL_HANDLE;
   }
-  std::cerr << "Graphics Pipeline Destroyed\n";
+  if (computePipelineLayout)
+  {
+    vkDestroyPipelineLayout(device.getDevice(), computePipelineLayout, nullptr);
+    computePipelineLayout = VK_NULL_HANDLE;
+  }
+  if (displayPipelineLayout) 
+  {
+    vkDestroyPipelineLayout(device.getDevice(), displayPipelineLayout, nullptr);
+    displayPipelineLayout = VK_NULL_HANDLE;
+  }
+  if (computeDescriptorSetLayout)
+  {
+    vkDestroyDescriptorSetLayout(device.getDevice(), computeDescriptorSetLayout, nullptr);
+    computeDescriptorSetLayout = VK_NULL_HANDLE;
+  }
+  if (displayDescriptorSetLayout)
+  {
+    vkDestroyDescriptorSetLayout(device.getDevice(), displayDescriptorSetLayout, nullptr);
+    displayDescriptorSetLayout = VK_NULL_HANDLE;
+  }
+  std::cerr << "Pipelines Destroyed\n";
 }
 

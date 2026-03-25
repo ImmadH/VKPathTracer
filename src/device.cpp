@@ -29,7 +29,9 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surfa
 
     int i = 0;
     for (const auto& q : families) {
-        if (q.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        if ((q.queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
+            (q.queueFlags & VK_QUEUE_COMPUTE_BIT) &&
+            !indices.graphicsFamily.has_value()) {
             indices.graphicsFamily = i;
         }
 
@@ -95,7 +97,9 @@ static bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface)
         swapchainValid = !swapchainSupport.formats.empty() && !swapchainSupport.presentModes.empty();
     }
 
-    return indices.isComplete() && extensionsSupported && swapchainValid;
+    return indices.isComplete() &&
+           extensionsSupported &&
+           swapchainValid;
 }
 
 void VulkanDevice::create(VulkanInstance& instance, VkSurfaceKHR surface)
@@ -182,6 +186,17 @@ void VulkanDevice::create(VulkanInstance& instance, VkSurfaceKHR surface)
   {
     throw std::runtime_error("failed to create logical device!");
   }
+
+  VmaAllocatorCreateInfo allocatorInfo{};
+  allocatorInfo.instance = instance.getInstance();
+  allocatorInfo.physicalDevice = physicalDevice;
+  allocatorInfo.device = device;
+  allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+
+  if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
+  {
+    throw std::runtime_error("failed to create VMA allocator!");
+  }
   
   vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
   vkGetDeviceQueue(device, indices.presentFamily.value(),  0, &presentQueue);
@@ -191,6 +206,11 @@ void VulkanDevice::create(VulkanInstance& instance, VkSurfaceKHR surface)
 
 void VulkanDevice::destroy()
 {
+  if (allocator)
+  {
+    vmaDestroyAllocator(allocator);
+    allocator = nullptr;
+  }
   if (device) 
   {
     vkDestroyDevice(device, nullptr);

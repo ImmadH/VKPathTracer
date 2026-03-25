@@ -1,6 +1,7 @@
 #pragma once
 #include "instance.h"
 #include "vk_types.h"
+#include <vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
 SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
 class VulkanDevice 
@@ -13,6 +14,7 @@ public:
   VkQueue getGraphicsQueue() const {return graphicsQueue;}
   VkQueue getPresentQueue() const {return presentQueue;}
   QueueFamilyIndices getQueueFamilyIndices() const {return queueFI;}
+  VmaAllocator getAllocator() const {return allocator;}
 
 private:
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;  
@@ -20,6 +22,7 @@ private:
   VkQueue graphicsQueue = VK_NULL_HANDLE;;
   VkQueue presentQueue = VK_NULL_HANDLE;
   QueueFamilyIndices queueFI;
+  VmaAllocator allocator = nullptr;
 };
 
 

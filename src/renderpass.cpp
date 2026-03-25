@@ -32,7 +32,8 @@ void VulkanRenderPass::createRenderPass(VulkanDevice& device,
   dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
   dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-  VkRenderPassCreateInfo rpInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
+  VkRenderPassCreateInfo rpInfo{};
+  rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   rpInfo.attachmentCount = 1;
   rpInfo.pAttachments = &colorAttachment;
   rpInfo.subpassCount = 1;

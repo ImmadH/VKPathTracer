@@ -11,11 +11,16 @@ class VulkanCommands
 public:
   void createCommandPool(const VulkanDevice& device);
 
-  void createCommandBuffers(const VulkanDevice& device,
-                            const VulkanSwapchain& swapchain,
-                            const VulkanRenderPass& renderPass,
-                            const VulkanPipeline& pipeline,
-                            const std::vector<VkFramebuffer>& framebuffers);
+  void createCommandBuffers(const VulkanDevice& device, uint32_t count);
+  void recordCommandBuffer(uint32_t imageIndex,
+                           const VulkanSwapchain& swapchain,
+                           const VulkanRenderPass& renderPass,
+                           const VulkanPipeline& pipeline,
+                           VkFramebuffer framebuffer,
+                           VkDescriptorSet computeDescriptorSet,
+                           VkDescriptorSet displayDescriptorSet,
+                           VkImage accumulationReadImage,
+                           VkImage accumulationWriteImage);
 
   void destroy(const VulkanDevice& device);
 

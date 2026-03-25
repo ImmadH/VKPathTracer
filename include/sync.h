@@ -6,7 +6,7 @@ const int MAX_FRAMES_IN_FLIGHT = 2;
 class VulkanSync
 {
 public:
-  void createSyncObjects(const VulkanDevice& device);
+  void createSyncObjects(const VulkanDevice& device, uint32_t swapchainImageCount);
 
   void destroy(const VulkanDevice& device);
   const std::vector<VkSemaphore>& getImageAvailableSemaphore() const { return imageAvailableSemaphore; }
@@ -14,7 +14,7 @@ public:
   const std::vector<VkFence>&  getInFlightFence()  const { return inFlightFence; }
 
   VkSemaphore imageAvailable(uint32_t frame) const {return imageAvailableSemaphore[frame];}
-  VkSemaphore renderFinished(uint32_t frame) const {return renderFinishedSemaphore[frame];}
+  VkSemaphore renderFinished(uint32_t imageIndex) const {return renderFinishedSemaphore[imageIndex];}
   VkFence     inFlight(uint32_t frame) const {return inFlightFence[frame];}
   
 
