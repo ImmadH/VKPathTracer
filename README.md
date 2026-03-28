@@ -1,5 +1,5 @@
 This is a C++ Vulkan Path Tracer.
-More info here: https://immadh.com/projects/vkrenderer/
+More info here: https://immadh.com/projects/vkpathtrace
 
 Current features
 - Vulkan 1.3 
