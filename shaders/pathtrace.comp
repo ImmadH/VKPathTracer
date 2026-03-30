@@ -1,0 +1,336 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, std140) uniform CameraData {
+  vec4 position;
+  vec4 forward;
+  vec4 right;
+  vec4 up;
+  vec4 params; // x=fovY, y=aspect, z=frameIndex, w=unused
+} camera;
+
+layout(set = 0, binding = 1, rgba16f) uniform readonly image2D accumulationRead;
+layout(set = 0, binding = 2, rgba16f) uniform writeonly image2D accumulationWrite;
+
+const int MATERIAL_DIFFUSE = 0;
+const int MATERIAL_METAL = 1;
+const int MATERIAL_EMISSIVE = 2;
+const int MATERIAL_DIELECTRIC = 3;
+const int SCENE_SPHERE_COUNT = 4;
+const float RAY_EPSILON = 0.001;
+const float FAR_T = 1e30;
+
+struct Material {
+  vec3 albedo;
+  float fuzz;
+  int type;
+  vec3 emission;
+  float refractiveIndex;
+};
+
+struct HitInfo {
+  float t;
+  vec3 position;
+  vec3 normal;
+  Material material;
+};
+
+bool intersectSphere(vec3 rayOrigin, vec3 rayDirection, vec3 center, float radius, Material material, out HitInfo hit)
+{
+  vec3 oc = rayOrigin - center;
+  float a = dot(rayDirection, rayDirection);
+  float b = 2.0 * dot(oc, rayDirection);
+  float c = dot(oc, oc) - radius * radius;
+  float discriminant = b * b - 4.0 * a * c;
+
+  if (discriminant < 0.0) {
+    return false;
+  }
+
+  float sqrtDiscriminant = sqrt(discriminant);
+  float t = (-b - sqrtDiscriminant) / (2.0 * a);
+  if (t <= RAY_EPSILON) {
+    t = (-b + sqrtDiscriminant) / (2.0 * a);
+    if (t <= RAY_EPSILON) {
+      return false;
+    }
+  }
+
+  hit.t = t;
+  hit.position = rayOrigin + t * rayDirection;
+  hit.normal = normalize(hit.position - center);
+  hit.material = material;
+  return true;
+}
+
+bool intersectPlane(vec3 rayOrigin, vec3 rayDirection, vec3 normal, float planeOffset, Material material, out HitInfo hit)
+{
+  float denom = dot(normal, rayDirection);
+  if (abs(denom) < 0.0001) {
+    return false;
+  }
+
+  float t = -(dot(normal, rayOrigin) + planeOffset) / denom;
+  if (t <= RAY_EPSILON) {
+    return false;
+  }
+
+  hit.t = t;
+  hit.position = rayOrigin + t * rayDirection;
+  hit.normal = normalize(normal);
+  hit.material = material;
+  return true;
+}
+
+vec3 backgroundColor(vec3 rayDirection)
+{
+  float skyMix = clamp(rayDirection.y * 0.5 + 0.5, 0.0, 1.0);
+  vec3 skyColor = mix(vec3(0.84, 0.87, 0.92), vec3(0.36, 0.58, 0.98), skyMix);
+  vec3 groundColor = vec3(0.30, 0.27, 0.24);
+  return mix(groundColor, skyColor, smoothstep(-0.10, 0.15, rayDirection.y));
+}
+
+uint hashUint(uint value)
+{
+  value ^= value >> 16;
+  value *= 0x7feb352du;
+  value ^= value >> 15;
+  value *= 0x846ca68bu;
+  value ^= value >> 16;
+  return value;
+}
+
+uint initRandomState(uvec2 pixelCoord, uint frameIndex)
+{
+  uint seed = pixelCoord.x * 1973u;
+  seed ^= pixelCoord.y * 9277u;
+  seed ^= frameIndex * 26699u;
+  return hashUint(seed | 1u);
+}
+
+float randomFloat(inout uint state)
+{
+  state = hashUint(state + 0x9e3779b9u);
+  return float(state) / 4294967296.0;
+}
+
+vec3 randomInUnitSphere(inout uint state)
+{
+  for (int attempt = 0; attempt < 8; ++attempt) {
+    vec3 candidate = 2.0 * vec3(randomFloat(state), randomFloat(state), randomFloat(state)) - vec3(1.0);
+    if (dot(candidate, candidate) < 1.0) {
+      return candidate;
+    }
+  }
+
+  return vec3(0.0, 1.0, 0.0);
+}
+
+vec3 randomUnitVector(inout uint state)
+{
+  return normalize(randomInUnitSphere(state));
+}
+
+float reflectanceSchlick(float cosine, float refractiveIndex)
+{
+  float r0 = (1.0 - refractiveIndex) / (1.0 + refractiveIndex);
+  r0 *= r0;
+  return r0 + (1.0 - r0) * pow(1.0 - cosine, 5.0);
+}
+
+vec3 sphereCenterForIndex(int index)
+{
+  if (index == 0) return vec3(0.0, 0.0, -3.0);
+  if (index == 1) return vec3(0.0, 0.35, -6.4);
+  if (index == 2) return vec3(0.0, 2.15, -4.9);
+  return vec3(2.2, 0.55, -4.6);
+}
+
+float sphereRadiusForIndex(int index)
+{
+  if (index == 0) return 1.0;
+  if (index == 1) return 1.35;
+  if (index == 2) return 0.9;
+  return 0.85;
+}
+
+Material sphereMaterialForIndex(int index)
+{
+  if (index == 0) {
+    return Material(vec3(0.85, 0.25, 0.20), 0.0, MATERIAL_DIFFUSE, vec3(0.0), 1.0);
+  }
+
+  if (index == 1) {
+    return Material(vec3(0.72, 0.82, 0.96), 0.0, MATERIAL_METAL, vec3(0.0), 1.0);
+  }
+
+  if (index == 2) {
+    return Material(vec3(0.18, 0.76, 0.47), 0.0, MATERIAL_DIFFUSE, vec3(0.0), 1.0);
+  }
+
+  return Material(vec3(1.0), 0.0, MATERIAL_EMISSIVE, vec3(8.5, 6.2, 3.2), 1.0);
+}
+
+bool traceScene(vec3 rayOrigin, vec3 rayDirection, out HitInfo closestHit)
+{
+  closestHit.t = FAR_T;
+
+  Material planeDiffuse = Material(vec3(0.50, 0.50, 0.50), 0.0, MATERIAL_DIFFUSE, vec3(0.0), 1.0);
+
+  HitInfo candidateHit;
+
+  for (int sphereIndex = 0; sphereIndex < SCENE_SPHERE_COUNT; ++sphereIndex) {
+    vec3 sphereCenter = sphereCenterForIndex(sphereIndex);
+    float sphereRadius = sphereRadiusForIndex(sphereIndex);
+    Material sphereMaterial = sphereMaterialForIndex(sphereIndex);
+    if (intersectSphere(rayOrigin, rayDirection, sphereCenter, sphereRadius, sphereMaterial, candidateHit) &&
+        candidateHit.t < closestHit.t) {
+      closestHit = candidateHit;
+    }
+  }
+
+  if (intersectPlane(rayOrigin, rayDirection, vec3(0.0, 1.0, 0.0), 1.0, planeDiffuse, candidateHit) &&
+      candidateHit.t < closestHit.t) {
+    float checker = mod(floor(candidateHit.position.x) + floor(candidateHit.position.z), 2.0);
+    candidateHit.material.albedo = mix(vec3(0.72, 0.72, 0.74), vec3(0.18, 0.18, 0.20), checker);
+    closestHit = candidateHit;
+  }
+
+  return closestHit.t < FAR_T;
+}
+
+bool scatter(HitInfo hit,
+             vec3 incomingDirection,
+             inout uint rngState,
+             out vec3 nextOrigin,
+             out vec3 nextDirection,
+             out vec3 attenuation)
+{
+  if (hit.material.type == MATERIAL_EMISSIVE) {
+    return false;
+  }
+
+  attenuation = hit.material.albedo;
+
+  if (hit.material.type == MATERIAL_METAL) {
+    vec3 reflected = reflect(normalize(incomingDirection), hit.normal);
+    vec3 scattered = reflected + hit.material.fuzz * randomInUnitSphere(rngState);
+    if (dot(scattered, hit.normal) <= 0.0) {
+      return false;
+    }
+
+    nextOrigin = hit.position + hit.normal * RAY_EPSILON;
+    nextDirection = normalize(scattered);
+    return true;
+  }
+
+  if (hit.material.type == MATERIAL_DIELECTRIC) {
+    attenuation = hit.material.albedo;
+
+    vec3 unitIncoming = normalize(incomingDirection);
+    float refractionRatio = hit.material.refractiveIndex;
+    vec3 normal = hit.normal;
+
+    if (dot(unitIncoming, hit.normal) < 0.0) {
+      refractionRatio = 1.0 / hit.material.refractiveIndex;
+    } else {
+      normal = -hit.normal;
+    }
+
+    float cosTheta = min(dot(-unitIncoming, normal), 1.0);
+    float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+    bool cannotRefract = refractionRatio * sinTheta > 1.0;
+
+    if (cannotRefract || reflectanceSchlick(cosTheta, refractionRatio) > randomFloat(rngState)) {
+      nextDirection = reflect(unitIncoming, normal);
+    } else {
+      nextDirection = refract(unitIncoming, normal, refractionRatio);
+    }
+
+    nextOrigin = hit.position + nextDirection * RAY_EPSILON;
+    nextDirection = normalize(nextDirection);
+    return true;
+  }
+
+  vec3 diffuseDirection = normalize(hit.normal + randomUnitVector(rngState));
+  if (dot(diffuseDirection, diffuseDirection) < 0.0001) {
+    diffuseDirection = hit.normal;
+  }
+
+  nextOrigin = hit.position + hit.normal * RAY_EPSILON;
+  nextDirection = diffuseDirection;
+  return true;
+}
+
+vec3 traceColor(vec3 rayOrigin, vec3 rayDirection, inout uint rngState)
+{
+  vec3 throughput = vec3(1.0);
+  vec3 radiance = vec3(0.0);
+
+  for (int bounce = 0; bounce < 8; ++bounce) {
+    HitInfo hit;
+    if (!traceScene(rayOrigin, rayDirection, hit)) {
+      radiance += throughput * backgroundColor(rayDirection);
+      break;
+    }
+
+    radiance += throughput * hit.material.emission;
+
+    vec3 nextOrigin;
+    vec3 nextDirection;
+    vec3 attenuation;
+    if (!scatter(hit, rayDirection, rngState, nextOrigin, nextDirection, attenuation)) {
+      break;
+    }
+
+    throughput *= attenuation;
+    rayOrigin = nextOrigin;
+    rayDirection = nextDirection;
+
+    if (bounce >= 3) {
+      float continueProbability = clamp(max(throughput.r, max(throughput.g, throughput.b)), 0.10, 0.95);
+      if (randomFloat(rngState) > continueProbability) {
+        break;
+      }
+      throughput /= continueProbability;
+    }
+  }
+
+  return radiance;
+}
+
+void main()
+{
+  ivec2 imageExtent = imageSize(accumulationWrite);
+  ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+  if (pixelCoord.x >= imageExtent.x || pixelCoord.y >= imageExtent.y) {
+    return;
+  }
+
+  uint frameIndex = uint(camera.params.z);
+  uint rngState = initRandomState(uvec2(pixelCoord), frameIndex);
+
+  vec2 jitter = vec2(randomFloat(rngState), randomFloat(rngState)) - vec2(0.5);
+  vec2 pixelUv = (vec2(pixelCoord) + vec2(0.5) + jitter) / vec2(imageExtent);
+  vec2 ndc = vec2(pixelUv.x * 2.0 - 1.0, 1.0 - pixelUv.y * 2.0);
+  float tanHalfFov = tan(camera.params.x * 0.5);
+
+  vec3 rayOrigin = camera.position.xyz;
+  vec3 rayDirection = normalize(
+      camera.forward.xyz +
+      ndc.x * camera.params.y * tanHalfFov * camera.right.xyz +
+      ndc.y * tanHalfFov * camera.up.xyz
+  );
+
+  vec3 currentSample = traceColor(rayOrigin, rayDirection, rngState);
+  vec3 accumulatedColor = currentSample;
+
+  if (frameIndex > 0u) {
+    vec3 previousAccumulation = imageLoad(accumulationRead, pixelCoord).rgb;
+    float sampleCount = float(frameIndex);
+    accumulatedColor = (previousAccumulation * sampleCount + currentSample) / (sampleCount + 1.0);
+  }
+
+  imageStore(accumulationWrite, pixelCoord, vec4(accumulatedColor, 1.0));
+}

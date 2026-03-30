@@ -1,3 +1,8 @@
-C:/VulkanSDK/1.4.321.1/Bin/glslc.exe shader.vert -o vert.spv
-C:/VulkanSDK/1.4.321.1/Bin/glslc.exe shader.frag -o frag.spv
-pause
+@echo off
+pushd "%~dp0"
+"%VULKAN_SDK%\Bin\glslc.exe" shader.vert -o vert.spv
+if errorlevel 1 goto :end
+"%VULKAN_SDK%\Bin\glslc.exe" shader.frag -o frag.spv
+"%VULKAN_SDK%\Bin\glslc.exe" pathtrace.comp -o pathtrace.comp.spv
+:end
+popd
